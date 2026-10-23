@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Past Reviews · Did we win today?</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#FCF7E7;color:#1A1A1A;font-family:Arial,system-ui,sans-serif}
+a{color:#DD0033}a:hover{color:#940929}
+header{background:#DD0033;color:#fff;padding:20px 16px}
+header div{max-width:1100px;margin:0 auto}
+header small{font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+header h1{margin:6px 0 0;font-size:26px;letter-spacing:-.02em}
+main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px}
+.card{background:#fff;border:1px solid #EEEDEB;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:20px}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end}
+label{display:grid;gap:6px;font-size:13px;color:#5B6770;font-weight:600}
+input,select{height:44px;border:2px solid #DAD7D2;border-radius:10px;padding:0 10px;font:inherit;font-size:15px;background:#fff;color:#1A1A1A}
+button{height:44px;padding:0 18px;border-radius:999px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;border:2px solid #DD0033;background:#fff;color:#DD0033}
+button.primary{background:#DD0033;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:#5B6770;font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding:8px}
+td{padding:10px 8px;border-top:1px solid #EEEDEB;vertical-align:top}
+tr.row{cursor:pointer}tr.row:hover td{background:#FCF7E7}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;color:#fff}
+.muted{color:#5B6770}
+#signin{display:grid;place-items:center;gap:12px;text-align:center;padding:40px 20px}
+#detail ul{margin:8px 0;padding-left:18px}
+.stats{display:flex;gap:24px;flex-wrap:wrap}
+.stat b{display:block;font-size:28px}
+</style>
+</head>
+<body>
+<header><div><small>Chick-fil-A Ft. Totten</small><h1>Did we win today? · Past Reviews</h1></div></header>
+<main>
+  <div class="card" id="signin"><p class="muted">Sign in with your cfafttotten.com Google account.</p><div id="gbtn"></div><p id="err" style="color:#DD0033"></p></div>
+  <div id="app" hidden style="display:grid;gap:16px">
+    <div class="card filters">
+      <label>From<input type="date" id="from"></label>
+      <label>To<input type="date" id="to"></label>
+      <label>Shift Leader<select id="leader"><option value="">All</option></select></label>
+      <label>Shift<select id="daypart"><option value="">All</option><option>Breakfast</option><option>Lunch</option><option>Afternoon</option><option>Dinner</option></select></label>
+      <label>Side<select id="side"><option value="">FOH + BOH</option><option value="foh">FOH</option><option value="boh">BOH</option></select></label>
+      <div style="display:flex;gap:8px"><button class="primary" id="load">Search</button><button id="csv">Export CSV</button></div>
+    </div>
+    <div class="card"><div class="stats" id="stats"></div><svg id="chart" viewBox="0 0 1000 220" style="width:100%;height:220px;margin-top:12px"></svg></div>
+    <div class="card" id="detail" hidden></div>
+    <div class="card" style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Shift</th><th>Side</th><th>Leader</th><th>Score</th><th>Flags</th><th>Amended</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </div>
+</main>
+<script>
+var cfg, idToken = sessionStorage.getItem('dww-id') || '', data = [];
+var $ = function (id) { return document.getElementById(id); };
+var color = function (g) { return g === 'Green' ? '#249E6B' : g === 'Yellow' ? '#FFB549' : '#DD0033'; };
+var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+function api(action, p) {
+  p = p || {}; p.action = action; p.idToken = idToken;
+  return fetch(cfg.endpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(p) }).then(function (r) { return r.json(); });
+}
+function iso(d) { return d.toISOString().slice(0, 10); }
+function start() {
+  $('signin').hidden = true; $('app').hidden = false;
+  var t = new Date(), f = new Date(); f.setDate(t.getDate() - 13);
+  $('from').value = $('from').value || iso(f); $('to').value = $('to').value || iso(t);
+  load().then(function () { var id = new URLSearchParams(location.search).get('review'); if (id) openReview(id); });
+}
+function load() {
+  return api('list', { from: $('from').value, to: $('to').value }).then(function (res) {
+    if (!res.ok) { sessionStorage.removeItem('dww-id'); $('app').hidden = true; $('signin').hidden = false; $('err').textContent = res.error; return; }
+    data = res.rows.sort(function (a, b) { return (b.date + b.submittedAt).localeCompare(a.date + a.submittedAt); });
+    var names = Array.from(new Set(data.map(function (r) { return r.leader; }))).sort(), cur = $('leader').value;
+    $('leader').innerHTML = '<option value="">All</option>' + names.map(function (n) { return '<option' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('');
+    render();
+  });
+}
+function filtered() {
+  return data.filter(function (r) { return (!$('leader').value || r.leader === $('leader').value) && (!$('daypart').value || r.daypart === $('daypart').value) && (!$('side').value || r.side === $('side').value); });
+}
+function render() {
+  var rows = filtered();
+  $('rows').innerHTML = rows.map(function (r) {
+    return '<tr class="row" data-id="' + r.id + '"><td>' + r.date + '</td><td>' + r.daypart + '</td><td>' + r.side.toUpperCase() + '</td><td>' + esc(r.leader) + '</td><td><b>' + r.score + '</b> <span class="pill" style="background:' + color(r.grade) + '">' + r.grade + '</span></td><td>' + r.flags.length + '</td><td class="muted">' + (r.updatedBy ? esc(r.updatedBy.split('@')[0]) : '') + '</td></tr>';
+  }).join('') || '<tr><td colspan="7" class="muted">No reviews in this range.</td></tr>';
+  Array.prototype.forEach.call(document.querySelectorAll('tr.row'), function (tr) { tr.onclick = function () { openReview(tr.getAttribute('data-id')); }; });
+  var avg = function (list) { return list.length ? Math.round(list.reduce(function (a, r) { return a + r.score; }, 0) / list.length) : '—'; };
+  var foh = rows.filter(function (r) { return r.side === 'foh'; }), boh = rows.filter(function (r) { return r.side === 'boh'; });
+  $('stats').innerHTML = '<div class="stat"><span class="muted">Reviews</span><b>' + rows.length + '</b></div><div class="stat"><span class="muted">FOH avg</span><b>' + avg(foh) + '</b></div><div class="stat"><span class="muted">BOH avg</span><b>' + avg(boh) + '</b></div><div class="stat"><span class="muted">Green</span><b>' + rows.filter(function (r) { return r.grade === 'Green'; }).length + '</b></div>';
+  chart(rows);
+}
+function chart(rows) {
+  var days = Array.from(new Set(rows.map(function (r) { return r.date; }))).sort(), W = 1000, H = 220, pad = 30;
+  if (!days.length) { $('chart').innerHTML = ''; return; }
+  var x = function (i) { return pad + (days.length === 1 ? (W - 2 * pad) / 2 : i * (W - 2 * pad) / (days.length - 1)); }, y = function (v) { return H - pad - (v / 100) * (H - 2 * pad); };
+  var line = function (side, c) {
+    var pts = days.map(function (d, i) { var l = rows.filter(function (r) { return r.date === d && r.side === side; }); return l.length ? [x(i), y(l.reduce(function (a, r) { return a + r.score; }, 0) / l.length)] : null; }).filter(Boolean);
+    return '<polyline fill="none" stroke="' + c + '" stroke-width="3" points="' + pts.map(function (p) { return p.join(','); }).join(' ') + '"/>' + pts.map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4" fill="' + c + '"/>'; }).join('');
+  };
+  var grid = [75, 90].map(function (v) { return '<line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#DAD7D2" stroke-dasharray="4 4"/><text x="4" y="' + (y(v) + 4) + '" font-size="12" fill="#5B6770">' + v + '</text>'; }).join('');
+  var labels = days.map(function (d, i) { return (days.length < 16 || i % Math.ceil(days.length / 15) === 0) ? '<text x="' + x(i) + '" y="' + (H - 8) + '" font-size="11" text-anchor="middle" fill="#5B6770">' + d.slice(5) + '</text>' : ''; }).join('');
+  $('chart').innerHTML = grid + line('foh', '#DD0033') + line('boh', '#004F71') + labels + '<text x="' + (W - pad) + '" y="16" font-size="12" text-anchor="end"><tspan fill="#DD0033">● FOH</tspan>  <tspan fill="#004F71">● BOH</tspan></text>';
+}
+function openReview(id) {
+  api('getReview', { id: id }).then(function (res) {
+    if (!res.ok) return alert(res.error);
+    var r = res.review, d = $('detail');
+    d.hidden = false;
+    d.innerHTML = '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><h2 style="margin:0;flex:1;font-size:20px">' + r.side.toUpperCase() + ' · ' + r.daypart + ' · ' + r.date + ' · ' + esc(r.leader) + '</h2><b style="font-size:24px">' + r.score + '</b><span class="pill" style="background:' + color(r.grade) + '">' + r.grade + '</span>' +
+      '<a href="index.html?review=' + r.id + '&t=' + encodeURIComponent(idToken) + '" target="_blank"><button class="primary">Open &amp; Amend</button></a></div>' +
+      '<h3 style="font-size:15px;margin:16px 0 0">Needs attention (' + r.flags.length + ')</h3>' + (r.flags.length ? '<ul>' + r.flags.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '<p class="muted">Nothing flagged.</p>') +
+      '<h3 style="font-size:15px;margin:16px 0 0">Change history</h3>' + (r.history.length ? '<table><tr><th>When</th><th>Who</th><th>Field</th><th>Old</th><th>New</th></tr>' + r.history.map(function (h) { return '<tr><td>' + esc(h.when) + '</td><td>' + esc(String(h.who).split('@')[0]) + '</td><td>' + esc(h.field) + '</td><td>' + esc(h.from) + '</td><td>' + esc(h.to) + '</td></tr>'; }).join('') + '</table>' : '<p class="muted">No amendments.</p>');
+    window.scrollTo({ top: d.offsetTop - 16, behavior: 'smooth' });
+  });
+}
+function csv() {
+  var rows = filtered(), head = ['Date', 'Shift', 'Side', 'Leader', 'Score', 'Grade', 'Submitted At', 'Amended By', 'Amended At', 'Needs Attention'];
+  var q = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+  var text = [head].concat(rows.map(function (r) { return [r.date, r.daypart, r.side.toUpperCase(), r.leader, r.score, r.grade, r.submittedAt, r.updatedBy, r.updatedAt, r.flags.join(' | ')]; })).map(function (l) { return l.map(q).join(','); }).join('\n');
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' })); a.download = 'did-we-win-' + $('from').value + '-to-' + $('to').value + '.csv'; a.click();
+}
+$('load').onclick = load; $('csv').onclick = csv;
+['leader', 'daypart', 'side'].forEach(function (id) { $(id).onchange = render; });
+fetch('config.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (c) {
+  cfg = c;
+  if (idToken) return start();
+  (function ready() {
+    if (!(window.google && google.accounts)) return setTimeout(ready, 100);
+    google.accounts.id.initialize({ client_id: c.googleClientId, hd: 'cfafttotten.com', auto_select: true, callback: function (res) { idToken = res.credential; sessionStorage.setItem('dww-id', idToken); start(); } });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'outline', size: 'large', shape: 'pill' });
+    google.accounts.id.prompt();
+  })();
+}).catch(function () { $('err').textContent = 'config.json is missing or has a typo.'; });
+</script>
+</body>
+</html>
