@@ -30,13 +30,23 @@ tr.row{cursor:pointer}tr.row:hover td{background:#FCF7E7}
 #detail ul{margin:8px 0;padding-left:18px}
 .stats{display:flex;gap:24px;flex-wrap:wrap}
 .stat b{display:block;font-size:28px}
+#app:not([hidden]){display:grid;gap:16px}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header><div><small>Chick-fil-A Ft. Totten</small><h1>Did we win today? · Past Reviews</h1></div></header>
 <main>
-  <div class="card" id="signin"><p class="muted">Sign in with your cfafttotten.com Google account.</p><div id="gbtn"></div><p id="err" style="color:#DD0033"></p></div>
-  <div id="app" hidden style="display:grid;gap:16px">
+  <div class="card" id="signin"><p class="muted">Sign in with your cfafttotten.com Google account.</p><div id="gbtn"></div><p id="err" style="color:#DD0033"></p>
+    <div id="ext" style="margin-top:16px;padding-top:16px;border-top:1px solid #EEEDEB;display:grid;gap:10px">
+      <p class="muted" id="extMsg" style="margin:0">Google sign-in stuck or not loading? Open this page in your phone's browser.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a id="extBtn" href="#" style="display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 22px;border-radius:999px;background:#DD0033;color:#fff;font-weight:500;text-decoration:none">Open in Browser</a>
+        <button id="copyBtn" type="button" style="min-height:44px;padding:0 22px;border-radius:999px;border:2px solid #DD0033;background:#fff;color:#DD0033;font:inherit;font-weight:500;cursor:pointer">Copy Link</button>
+      </div>
+    </div>
+  </div>
+  <div id="app" hidden>
     <div class="card filters">
       <label>From<input type="date" id="from"></label>
       <label>To<input type="date" id="to"></label>
@@ -131,6 +141,23 @@ fetch('config.json', { cache: 'no-store' }).then(function (r) { return r.json();
     google.accounts.id.prompt();
   })();
 }).catch(function () { $('err').textContent = 'config.json is missing or has a typo.'; });
+</script>
+<script>
+(function () {
+  var url = location.href.split('#')[0], ua = navigator.userAgent || '';
+  var inApp = /FBAN|FBAV|Instagram|Line\/|LinkedInApp|Snapchat|TikTok|GSA\/|Teams|Slack|wv\)|; wv|WebView|HotSchedules|Workplace/i.test(ua) || (/iPhone|iPad|iPod/.test(ua) && !/Safari\//.test(ua));
+  var btn = document.getElementById('extBtn'), copy = document.getElementById('copyBtn'), msg = document.getElementById('extMsg');
+  if (/Android/i.test(ua)) btn.href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+  else if (/iPhone|iPad|iPod/.test(ua)) btn.href = 'x-safari-' + url;
+  else { btn.href = url; btn.target = '_blank'; btn.rel = 'noopener'; }
+  if (inApp) msg.innerHTML = '<strong>Google sign-in doesn’t work inside this app.</strong> Tap Open in Browser to continue in ' + (/Android/i.test(ua) ? 'Chrome' : 'Safari') + '.';
+  btn.addEventListener('click', function () { setTimeout(function () { msg.innerHTML = 'If nothing opened, tap Copy Link and paste it into ' + (/Android/i.test(ua) ? 'Chrome' : 'Safari') + '. You can also use the app’s ••• menu and choose Open in Browser.'; }, 1500); });
+  copy.addEventListener('click', function () {
+    var done = function () { copy.textContent = 'Link Copied'; setTimeout(function () { copy.textContent = 'Copy Link'; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { prompt('Copy this link:', url); });
+    else prompt('Copy this link:', url);
+  });
+})();
 </script>
 </body>
 </html>
