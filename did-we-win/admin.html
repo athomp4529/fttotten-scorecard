@@ -6,8 +6,10 @@
 <title>Past Reviews · Did we win today?</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
+@font-face{font-family:Apercu;src:url(../assets/fonts/Apercu-Regular.otf) format("opentype");font-weight:400}
+@font-face{font-family:Apercu;src:url(../assets/fonts/Apercu-Bold.otf) format("opentype");font-weight:700}
 *{box-sizing:border-box}
-body{margin:0;background:#FCF7E7;color:#1A1A1A;font-family:Arial,system-ui,sans-serif}
+body{margin:0;background:#FCF7E7;color:#1A1A1A;font-family:Apercu,Arial,sans-serif}
 a{color:#DD0033}a:hover{color:#940929}
 header{background:#DD0033;color:#fff;padding:20px 16px}
 header div{max-width:1100px;margin:0 auto}
@@ -26,7 +28,16 @@ td{padding:10px 8px;border-top:1px solid #EEEDEB;vertical-align:top}
 tr.row{cursor:pointer}tr.row:hover td{background:#FCF7E7}
 .pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;color:#fff}
 .muted{color:#5B6770}
-#signin{display:grid;place-items:center;gap:12px;text-align:center;padding:40px 20px}
+#signin{min-height:100vh;display:grid;place-items:center;padding:24px}
+#signin[hidden]{display:none}
+.scard{background:#fff;border:1px solid #EEEDEB;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:40px 32px;max-width:420px;width:100%;display:grid;gap:16px;justify-items:center;text-align:center}
+.scard .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#5B6770}
+.scard h1{margin:0;font-size:24px;color:#DD0033;letter-spacing:-.02em}
+.scard p{margin:0;line-height:1.5;color:#5B6770;font-size:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;height:auto;padding:0 28px;border-radius:999px;border:2px solid #DD0033;background:#DD0033;color:#fff;font:700 16px Apercu,Arial,sans-serif;text-decoration:none;cursor:pointer;width:100%;transition:background .16s,border-color .16s}.btn:hover{background:#940929;border-color:#940929}.btn:active{transform:scale(.97)}
+.link{font:400 14px Apercu,Arial,sans-serif;color:#1A1A1A;background:#fff;border:2px solid #DAD7D2;border-radius:10px;padding:12px;width:100%;height:auto;text-align:center}.link:focus{outline:none;border-color:#3EB1C8}
+.steps{margin:0;padding:16px 16px 16px 36px;text-align:left;background:#FCF7E7;border-radius:10px;color:#1A1A1A;font-size:15px;line-height:1.6;width:100%}
+#inapp{display:none;gap:12px;width:100%}.small{font-size:13px}
 #detail ul{margin:8px 0;padding-left:18px}
 .stats{display:flex;gap:24px;flex-wrap:wrap}
 .stat b{display:block;font-size:28px}
@@ -35,17 +46,22 @@ tr.row{cursor:pointer}tr.row:hover td{background:#FCF7E7}
 </style>
 </head>
 <body>
-<header><div><small>Chick-fil-A Ft. Totten</small><h1>Did we win today? · Past Reviews</h1></div></header>
-<main>
-  <div class="card" id="signin"><p class="muted">Sign in with your cfafttotten.com Google account.</p><div id="gbtn"></div><p id="err" style="color:#DD0033"></p>
-    <div id="ext" style="margin-top:16px;padding-top:16px;border-top:1px solid #EEEDEB;display:grid;gap:10px">
-      <p class="muted" id="extMsg" style="margin:0">Google sign-in stuck or not loading? Open this page in your phone's browser.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a id="extBtn" href="#" style="display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 22px;border-radius:999px;background:#DD0033;color:#fff;font-weight:500;text-decoration:none">Open in Browser</a>
-        <button id="copyBtn" type="button" style="min-height:44px;padding:0 22px;border-radius:999px;border:2px solid #DD0033;background:#fff;color:#DD0033;font:inherit;font-weight:500;cursor:pointer">Copy Link</button>
-      </div>
-    </div>
+<div id="signin"><div class="scard">
+  <div class="eyebrow">Chick-fil-A Ft. Totten</div>
+  <h1>Did We Win? Dashboard</h1>
+  <p>Leaders only. Sign in with your cfafttotten.com Google account.</p>
+  <div id="inapp">
+    <p style="color:#1A1A1A">To sign in, open this page in your phone’s browser.</p>
+    <button class="btn" id="copy" type="button">Copy Link</button>
+    <input class="link" id="link" readonly onclick="this.select()">
+    <ol class="steps" id="steps"></ol>
+    <p class="small">Tip: once it opens, use Share ▸ Add to Home Screen so you can skip this next time.</p>
   </div>
+  <div id="gbtn" style="display:none"></div>
+  <p id="err" style="color:#DD0033"></p>
+</div></div>
+<header id="hdr" hidden><div><small>Chick-fil-A Ft. Totten</small><h1>Did we win today? · Past Reviews</h1></div></header>
+<main>
   <div id="app" hidden>
     <div class="card filters">
       <label>From<input type="date" id="from"></label>
@@ -61,6 +77,25 @@ tr.row{cursor:pointer}tr.row:hover td{background:#FCF7E7}
   </div>
 </main>
 <script>
+var ua = navigator.userAgent || '', inBrowser = /[?&]browser=1/.test(location.search);
+var url = 'https://scorecard.cfafttotten.com/did-we-win/admin?browser=1';
+var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+var isAndroid = /Android/.test(ua);
+function showOpen() {
+  var box = document.getElementById('inapp'), field = document.getElementById('link'), steps = document.getElementById('steps');
+  box.style.display = 'grid';
+  field.value = url;
+  var browser = isAndroid ? 'Chrome' : isIOS ? 'Safari' : 'your browser';
+  steps.innerHTML = '<li>Tap <b>Copy Link</b> above.</li><li>Open <b>' + browser + '</b> and paste the link in the address bar.</li><li>Sign in with your cfafttotten.com account.</li>';
+  document.getElementById('copy').onclick = function () {
+    var b = this;
+    function done(){ b.textContent = 'Link Copied'; setTimeout(function(){ b.textContent = 'Copy Link'; }, 2000); }
+    function fallback(){ field.focus(); field.select(); field.setSelectionRange(0, url.length); try { if (document.execCommand('copy')) return done(); } catch (e) {} prompt('Copy this link:', url); }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(done, fallback); else fallback();
+  };
+}
+</script>
+<script>
 var cfg, idToken = sessionStorage.getItem('dww-id') || '', data = [];
 var $ = function (id) { return document.getElementById(id); };
 var color = function (g) { return g === 'Green' ? '#249E6B' : g === 'Yellow' ? '#FFB549' : '#DD0033'; };
@@ -71,14 +106,14 @@ function api(action, p) {
 }
 function iso(d) { return d.toISOString().slice(0, 10); }
 function start() {
-  $('signin').hidden = true; $('app').hidden = false;
+  $('signin').hidden = true; $('hdr').hidden = false; $('app').hidden = false;
   var t = new Date(), f = new Date(); f.setDate(t.getDate() - 13);
   $('from').value = $('from').value || iso(f); $('to').value = $('to').value || iso(t);
   load().then(function () { var id = new URLSearchParams(location.search).get('review'); if (id) openReview(id); });
 }
 function load() {
   return api('list', { from: $('from').value, to: $('to').value }).then(function (res) {
-    if (!res.ok) { sessionStorage.removeItem('dww-id'); $('app').hidden = true; $('signin').hidden = false; $('err').textContent = res.error; return; }
+    if (!res.ok) { sessionStorage.removeItem('dww-id'); idToken = ''; $('app').hidden = true; $('hdr').hidden = true; $('signin').hidden = false; showSignin(); $('err').textContent = res.error; return; }
     data = res.rows.sort(function (a, b) { return (b.date + b.submittedAt).localeCompare(a.date + a.submittedAt); });
     var names = Array.from(new Set(data.map(function (r) { return r.leader; }))).sort(), cur = $('leader').value;
     $('leader').innerHTML = '<option value="">All</option>' + names.map(function (n) { return '<option' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('');
@@ -134,30 +169,21 @@ $('load').onclick = load; $('csv').onclick = csv;
 fetch('config.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (c) {
   cfg = c;
   if (idToken) return start();
+  showSignin();
+}).catch(function () { $('err').textContent = 'config.json is missing or has a typo.'; });
+var gsiDone = false;
+function showSignin() {
+  if (!inBrowser) return showOpen();
+  $('gbtn').style.display = '';
+  if (gsiDone) return; gsiDone = true;
+  var c = cfg;
   (function ready() {
     if (!(window.google && google.accounts)) return setTimeout(ready, 100);
     google.accounts.id.initialize({ client_id: c.googleClientId, hd: 'cfafttotten.com', auto_select: true, callback: function (res) { idToken = res.credential; sessionStorage.setItem('dww-id', idToken); start(); } });
     google.accounts.id.renderButton($('gbtn'), { theme: 'outline', size: 'large', shape: 'pill' });
     google.accounts.id.prompt();
   })();
-}).catch(function () { $('err').textContent = 'config.json is missing or has a typo.'; });
-</script>
-<script>
-(function () {
-  var url = location.href.split('#')[0], ua = navigator.userAgent || '';
-  var inApp = /FBAN|FBAV|Instagram|Line\/|LinkedInApp|Snapchat|TikTok|GSA\/|Teams|Slack|wv\)|; wv|WebView|HotSchedules|Workplace/i.test(ua) || (/iPhone|iPad|iPod/.test(ua) && !/Safari\//.test(ua));
-  var btn = document.getElementById('extBtn'), copy = document.getElementById('copyBtn'), msg = document.getElementById('extMsg');
-  if (/Android/i.test(ua)) btn.href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
-  else if (/iPhone|iPad|iPod/.test(ua)) btn.href = 'x-safari-' + url;
-  else { btn.href = url; btn.target = '_blank'; btn.rel = 'noopener'; }
-  if (inApp) msg.innerHTML = '<strong>Google sign-in doesn’t work inside this app.</strong> Tap Open in Browser to continue in ' + (/Android/i.test(ua) ? 'Chrome' : 'Safari') + '.';
-  btn.addEventListener('click', function () { setTimeout(function () { msg.innerHTML = 'If nothing opened, tap Copy Link and paste it into ' + (/Android/i.test(ua) ? 'Chrome' : 'Safari') + '. You can also use the app’s ••• menu and choose Open in Browser.'; }, 1500); });
-  copy.addEventListener('click', function () {
-    var done = function () { copy.textContent = 'Link Copied'; setTimeout(function () { copy.textContent = 'Copy Link'; }, 2000); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { prompt('Copy this link:', url); });
-    else prompt('Copy this link:', url);
-  });
-})();
+}
 </script>
 </body>
 </html>
