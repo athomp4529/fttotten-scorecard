@@ -50,14 +50,14 @@ tr.row{cursor:pointer}tr.row:hover td{background:#FCF7E7}
   <div class="eyebrow">Chick-fil-A Ft. Totten</div>
   <h1>Did We Win? Dashboard</h1>
   <p>Leaders only. Sign in with your cfafttotten.com Google account.</p>
+  <div id="gbtn" style="display:flex;justify-content:center;min-height:44px"></div>
   <div id="inapp">
-    <p style="color:#1A1A1A">To sign in, open this page in your phone’s browser.</p>
+    <p style="color:#1A1A1A">Sign-in stuck inside an app? Open this page in your phone’s browser.</p>
     <button class="btn" id="copy" type="button">Copy Link</button>
     <input class="link" id="link" readonly onclick="this.select()">
     <ol class="steps" id="steps"></ol>
     <p class="small">Tip: once it opens, use Share ▸ Add to Home Screen so you can skip this next time.</p>
   </div>
-  <div id="gbtn" style="display:none"></div>
   <p id="err" style="color:#DD0033"></p>
 </div></div>
 <header id="hdr" hidden><div><small>Chick-fil-A Ft. Totten</small><h1>Did we win today? · Past Reviews</h1></div></header>
@@ -173,8 +173,7 @@ fetch('config.json', { cache: 'no-store' }).then(function (r) { return r.json();
 }).catch(function () { $('err').textContent = 'config.json is missing or has a typo.'; });
 var gsiDone = false;
 function showSignin() {
-  if (!inBrowser) return showOpen();
-  $('gbtn').style.display = '';
+  showOpen();
   if (gsiDone) return; gsiDone = true;
   var c = cfg;
   (function ready() {
